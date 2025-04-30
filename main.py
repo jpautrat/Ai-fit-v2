@@ -11,10 +11,16 @@ import plotly.io as pio
 import time
 
 # -------- CONFIG --------
+# Load Groq API key from Streamlit secrets
+if "GROQ_API_KEY" in st.secrets:
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+else:
+    st.error("Missing GROQ_API_KEY in .streamlit/secrets.toml")
+    st.stop()
+
+GROQ_MODEL = "llama3-70b-8192"
 DATA_FILE = "user_data.json"
 RESPONSES_FILE = "agent_responses.json"
-GROQ_API_KEY = "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"
-GROQ_MODEL = "llama3-70b-8192"
 
 # Initialize session state
 st.session_state.setdefault("latest_plan", "")
@@ -77,7 +83,9 @@ if st.sidebar.button("🔄 Reset All Data"):
         st.session_state.pop(k, None)
     st.success("Data reset. Please refresh the page.")
     st.stop()
-mode = st.sidebar.selectbox("Theme", ["Light","Dark"], index=0 if st.session_state.theme_mode=="light" else 1)
+
+mode = st.sidebar.selectbox("Theme", ["Light","Dark"],
+                            index=0 if st.session_state.theme_mode=="light" else 1)
 st.session_state.theme_mode = mode.lower()
 if st.session_state.theme_mode == "dark":
     st.markdown("""
@@ -90,7 +98,6 @@ if st.session_state.theme_mode == "dark":
     pio.templates.default = "plotly_dark"
 else:
     pio.templates.default = "plotly"
-    # Classy light mode styles
     st.markdown("""
     <style>
         body, .stApp {
@@ -129,41 +136,37 @@ st.write("Groq-powered • Personalized • Interactive")
 st.markdown("---")
 st.subheader("👤 Personal Information")
 with st.form("profile_form"):
-    name = st.text_input("Name", data["personal"].get("name", ""))
-    age = st.number_input("Age", min_value=0, max_value=120, value=data["personal"].get("age", 0))
-    weight = st.number_input("Weight (kg)", min_value=0.0, max_value=300.0, value=data["personal"].get("weight", 0.0))
-    height = st.number_input("Height (cm)", min_value=0.0, max_value=250.0, value=data["personal"].get("height", 0.0))
-    gender = st.selectbox("Gender", ["Male", "Female", "Other"], index=0)
+    name   = st.text_input("Name",  data["personal"].get("name",""))
+    age    = st.number_input("Age",  min_value=0,  max_value=120, value=data["personal"].get("age",0))
+    weight = st.number_input("Weight (kg)", min_value=0.0, max_value=300.0, value=data["personal"].get("weight",0.0))
+    height = st.number_input("Height (cm)", min_value=0.0, max_value=250.0, value=data["personal"].get("height",0.0))
+    gender = st.selectbox("Gender", ["Male","Female","Other"], index=0)
     if st.form_submit_button("Save Profile"):
-        data["personal"] = {"name": name, "age": age, "weight": weight, "height": height, "gender": gender}
-        save_data(data)
-        st.success("Profile saved!")
+        data["personal"] = {"name":name,"age":age,"weight":weight,"height":height,"gender":gender}
+        save_data(data); st.success("Profile saved!")
 
 # -------- GOALS --------
 st.markdown("---")
 st.subheader("🎯 Fitness Goals")
-goals = st.multiselect("Goals", ["Muscle Gain", "Weight Loss", "Endurance", "Rehab"], data.get("goals", []))
+goals = st.multiselect("Goals", ["Muscle Gain","Weight Loss","Endurance","Rehab"], data.get("goals",[]))
 if st.button("Save Goals"):
-    data["goals"] = goals
-    save_data(data)
-    st.success("Goals saved!")
+    data["goals"] = goals; save_data(data); st.success("Goals saved!")
 
 # -------- NUTRITION --------
 st.markdown("---")
 st.subheader("🍎 Nutrition Targets")
-calories = st.number_input("Calories", value=data.get("nutrition", {}).get("calories", 2000))
-protein = st.number_input("Protein (g)", value=data.get("nutrition", {}).get("protein", 100))
-fat = st.number_input("Fat (g)", value=data.get("nutrition", {}).get("fat", 70))
-carbs = st.number_input("Carbs (g)", value=data.get("nutrition", {}).get("carbs", 250))
-col1, col2 = st.columns(2)
+calories = st.number_input("Calories", value=data.get("nutrition",{}).get("calories",2000))
+protein  = st.number_input("Protein (g)", value=data.get("nutrition",{}).get("protein",100))
+fat      = st.number_input("Fat (g)", value=data.get("nutrition",{}).get("fat",70))
+carbs    = st.number_input("Carbs (g)", value=data.get("nutrition",{}).get("carbs",250))
+col1,col2= st.columns(2)
 with col1:
     if st.button("Save Nutrition"):
-        data["nutrition"] = {"calories": calories, "protein": protein, "fat": fat, "carbs": carbs}
-        save_data(data)
-        st.success("Nutrition saved!")
+        data["nutrition"] = {"calories":calories,"protein":protein,"fat":fat,"carbs":carbs}
+        save_data(data); st.success("Nutrition saved!")
 with col2:
     if st.button("AI Nutrition Plan"):
-        plan = call_groq(f"Generate meal plan for a {age}-year-old {gender} {weight}kg aiming for {', '.join(goals)}.")
+        plan = call_groq(f"Generate meal plan for a {age}-year-old {gender} {weight}kg aiming {', '.join(goals)}.")
         st.info(plan)
 
 # -------- MACRO CHART --------
@@ -172,8 +175,8 @@ if data.get("nutrition"):
     st.subheader("📊 Macro Breakdown")
     m = data["nutrition"]
     fig = go.Figure(go.Bar(
-        x=[m["protein"], m["fat"], m["carbs"]],
-        y=["Protein", "Fat", "Carbs"],
+        x=[m["protein"],m["fat"],m["carbs"]],
+        y=["Protein","Fat","Carbs"],
         orientation='h'
     ))
     fig.update_layout(template=pio.templates.default, height=300)
@@ -182,22 +185,16 @@ if data.get("nutrition"):
 # -------- NOTES --------
 st.markdown("---")
 st.subheader("📝 Special Notes")
-for i, note in enumerate(data["notes"]):
-    cols = st.columns([4, 1, 1])
+for i,note in enumerate(data["notes"]):
+    cols = st.columns([4,1,1])
     new_note = cols[0].text_input("", note, key=f"note_{i}")
     if cols[1].button("💾 Save", key=f"save_{i}"):
-        data["notes"][i] = new_note
-        save_data(data)
-        st.rerun()
-    if cols[2].button("❌ Delete", key=f"delete_{i}"):
-        data["notes"].pop(i)
-        save_data(data)
-        st.rerun()
+        data["notes"][i] = new_note; save_data(data); st.rerun()
+    if cols[2].button("❌ Delete", key=f"del_{i}"):
+        data["notes"].pop(i); save_data(data); st.rerun()
 new_note = st.text_input("Add a new note")
 if st.button("Add Note") and new_note:
-    data["notes"].append(new_note)
-    save_data(data)
-    st.rerun()
+    data["notes"].append(new_note); save_data(data); st.rerun()
 
 # -------- PDF UPLOAD --------
 st.markdown("---")
@@ -210,16 +207,17 @@ if uploaded_file:
 # -------- MULTI-AGENT --------
 st.markdown("---")
 st.subheader("🧠 Multi-Agent Assistant")
-tabs = st.tabs(["🏋️ Workout Planner", "🥗 Nutritionist", "🦵 Rehab Advisor", "🧮 Fitness Calculator"])
+tabs = st.tabs(["🏋️ Workout Planner","🥗 Nutritionist","🦵 Rehab Advisor","🧮 Fitness Calculator"])
 
 with tabs[0]:
-    st.markdown("### 🏋️ Workout Planner")
-    query = st.text_input("Enter your workout-related question", key="mq1")
+    query = st.text_input("👟 Workout Question", key="mq1")
     if st.button("Ask Workout Planner", key="b1") and query.strip():
         with st.spinner("Planning your workout..."):
             prompt = (
                 f"Design a personalized workout plan for the following user:\n"
-                f"Profile: {data['personal']}\nGoals: {', '.join(goals)}\nNotes: {'; '.join(data['notes'])}\n"
+                f"Profile: {data['personal']}\n"
+                f"Goals: {', '.join(goals)}\n"
+                f"Notes: {'; '.join(data['notes'])}\n"
                 f"Question: {query}"
             )
             response = call_groq(prompt)
@@ -228,12 +226,12 @@ with tabs[0]:
             st.success(response)
 
 with tabs[1]:
-    st.markdown("### 🥗 Nutritionist")
-    query = st.text_input("Enter your nutrition-related question", key="mq2")
+    query = st.text_input("🥗 Nutrition Question", key="mq2")
     if st.button("Ask Nutritionist", key="b2") and query.strip():
         with st.spinner("Consulting nutritionist..."):
             prompt = (
-                f"You are a certified fitness nutritionist. User profile: {data['personal']}. Goals: {', '.join(goals)}. Notes: {'; '.join(data['notes'])}\n"
+                f"You are a certified fitness nutritionist.\n"
+                f"Profile: {data['personal']}\nGoals: {', '.join(goals)}\nNotes: {'; '.join(data['notes'])}\n"
                 f"Question: {query}"
             )
             response = call_groq(prompt)
@@ -242,12 +240,12 @@ with tabs[1]:
             st.info(response)
 
 with tabs[2]:
-    st.markdown("### 🦵 Rehab Advisor")
-    query = st.text_input("Enter your rehab/injury-related question", key="mq3")
+    query = st.text_input("🦵 Rehab Question", key="mq3")
     if st.button("Ask Rehab Advisor", key="b3") and query.strip():
         with st.spinner("Consulting rehab advisor..."):
             prompt = (
-                f"You are a certified rehab specialist. User profile: {data['personal']}. Injury notes: {'; '.join(data['notes'])}\n"
+                f"You are a certified rehab specialist.\n"
+                f"Profile: {data['personal']}\nInjury Notes: {'; '.join(data['notes'])}\n"
                 f"Question: {query}"
             )
             response = call_groq(prompt)
@@ -256,8 +254,7 @@ with tabs[2]:
             st.warning(response)
 
 with tabs[3]:
-    st.markdown("### 🧮 Fitness Calculator")
-    query = st.text_input("Enter your fitness calculation question", key="mq4")
+    query = st.text_input("🧮 Calculation Question", key="mq4")
     if st.button("Ask Fitness Calculator", key="b4") and query.strip():
         with st.spinner("Crunching numbers..."):
             prompt = f"You are a fitness calculator assistant. Question: {query}"

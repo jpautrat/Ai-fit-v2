@@ -13,3 +13,5 @@ agent_responses.json
 # IDE / editor
 .vscode/
 .idea/
+
+.streamlit/secrets.toml
