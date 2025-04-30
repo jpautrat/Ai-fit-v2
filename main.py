@@ -1,3 +1,16 @@
+"""
+Final Project - AI Fitness Assistant
+ITCS 4010/5010: Topics in Computer Science: Design and Development of Gen AI Applications
+Spring 2025
+Instructor: Dr. Siddharth Krishnan
+
+Group Members:
+- Adrian Castillo-Navarro
+- Anita Sarkar
+- Jeffrey Pautrat
+- Yajnesh Sai Putta
+"""
+
 # ✅ Fully Integrated Enhanced Fitness Assistant App
 
 import streamlit as st
