@@ -1,0 +1,6 @@
+streamlit==1.26.0
+requests==2.31.0
+fpdf==1.7.2
+PyMuPDF==1.21.1
+plotly==5.15.0
+
