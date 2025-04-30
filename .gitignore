@@ -1,0 +1,15 @@
+# Byte‐compiled / caches
+__pycache__/
+*.py[cod]
+
+# Environment
+.env
+.env.*
+
+# Data files
+user_data.json
+agent_responses.json
+
+# IDE / editor
+.vscode/
+.idea/
