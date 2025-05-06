@@ -63,21 +63,44 @@ def call_groq(prompt):
         return "❌ Failed to parse Groq response."
     
 def update_feedback(orig_prompt, feedback_label):
-    txt = st.text_input(
-        label = feedback_label,
-        max_chars = 200)
-    if st.button ("Submit") and txt:
-       # st.write ("Updating your plan...")        
-        prompt = orig_prompt + txt
-        print (prompt)
-        newplan = call_groq(prompt)
-        print (newplan)
-        # Save the updated plan to session state and data file
-        st.session_state.nutrition_plan = newplan
-        data = load_data()
-        data["nutrition_plan"] = newplan
-        save_data(data)
-        st.rerun()
+    # Create a unique key for this input to avoid conflicts
+    if "nutrition_feedback_key" not in st.session_state:
+        st.session_state.nutrition_feedback_key = "nutrition_feedback_" + str(time.time())
+    
+    txt = st.text_area(
+        label=feedback_label,
+        max_chars=500,
+        key=st.session_state.nutrition_feedback_key
+    )
+    
+    if st.button("Submit Feedback"):
+        if txt:
+            with st.spinner("Updating your nutrition plan..."):
+                # Create a more specific prompt that tells the AI to modify the previous plan
+                prompt = f"{orig_prompt}\n\nPlease update the meal plan based on this feedback: {txt}"
+                print(prompt)
+                
+                # Get the updated plan
+                newplan = call_groq(prompt)
+                print(newplan)
+                
+                if newplan and "❌" not in newplan:  # Check if we got a valid response
+                    # Save the updated plan to session state and data file
+                    st.session_state.nutrition_plan = newplan
+                    data = load_data()
+                    data["nutrition_plan"] = newplan
+                    save_data(data)
+                    
+                    # Show success message
+                    st.success("Your nutrition plan has been updated successfully!")
+                    # Reset the feedback input
+                    st.session_state.nutrition_feedback_key = "nutrition_feedback_" + str(time.time())
+                    # Rerun the app to show the updated plan
+                    st.rerun()
+                else:
+                    st.error("Failed to update the nutrition plan. Please try again.")
+        else:
+            st.warning("Please enter your feedback before submitting.")
     return
 
 
