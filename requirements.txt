@@ -3,4 +3,6 @@ requests==2.31.0
 fpdf2==2.7.8
 PyMuPDF==1.23.9
 plotly==5.18.0
+langchain>=0.0.267
+langchain-core>=0.1.0
 
