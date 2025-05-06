@@ -72,6 +72,11 @@ def update_feedback(orig_prompt, feedback_label):
         print (prompt)
         newplan = call_groq(prompt)
         print (newplan)
+        # Save the updated plan to session state and data file
+        st.session_state.nutrition_plan = newplan
+        data = load_data()
+        data["nutrition_plan"] = newplan
+        save_data(data)
         st.rerun()
     return
 
@@ -185,23 +190,37 @@ calories = st.number_input("Calories", value=data.get("nutrition",{}).get("calor
 protein  = st.number_input("Protein (g)", value=data.get("nutrition",{}).get("protein",100))
 fat      = st.number_input("Fat (g)", value=data.get("nutrition",{}).get("fat",70))
 carbs    = st.number_input("Carbs (g)", value=data.get("nutrition",{}).get("carbs",250))
+
+# Initialize nutrition_plan in session state if it doesn't exist
+if "nutrition_plan" not in st.session_state:
+    st.session_state.nutrition_plan = data.get("nutrition_plan", "")
+
 col1,col2= st.columns(2)
 with col1:
     if st.button("Save Nutrition"):
         data["nutrition"] = {"calories":calories,"protein":protein,"fat":fat,"carbs":carbs}
-        save_data(data); st.success("Nutrition saved!")
+        # Preserve the nutrition plan when saving nutrition data
+        if "nutrition_plan" in st.session_state and st.session_state.nutrition_plan:
+            data["nutrition_plan"] = st.session_state.nutrition_plan
+        save_data(data)
+        st.success("Nutrition saved!")
 with col2:
     if st.button("AI Nutrition Plan"):
         prompt = f"Generate meal plan for a {age}-year-old {gender} {weight}kg aiming {', '.join(goals)}."
-        print (prompt)
-#        nutplan_prompt = call_groq (prompt_perspectives{"question": prompt})
-#        print (nutplan_prompt)
+        print(prompt)
         plan = call_groq(prompt)
+        # Store the plan in session state and data
+        st.session_state.nutrition_plan = plan
+        data["nutrition_plan"] = plan
+        save_data(data)
         st.info(plan)
         feedback_label = "If you would like to make any changes to your nutritional plan, please enter below"
         update_feedback(prompt, feedback_label)
 
-
+# Display the saved nutrition plan if it exists
+if st.session_state.nutrition_plan:
+    st.markdown("### Your Nutrition Plan:")
+    st.info(st.session_state.nutrition_plan)
 
 # -------- MACRO CHART --------
 if data.get("nutrition"):
