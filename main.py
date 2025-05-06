@@ -84,49 +84,75 @@ def update_feedback(orig_prompt, feedback_label):
     if st.button("Submit Feedback"):
         if txt:
             with st.spinner("Updating your nutrition plan..."):
-                # Create a more specific and directive prompt for the AI
-                prompt = f"""Based on the user's profile ({age}-year-old {gender}, {weight}kg with goals: {', '.join(goals)}),
-                please create a COMPLETELY NEW meal plan that incorporates this specific feedback: {txt}.
+                # Get current user data directly from the data object to avoid variable scope issues
+                current_data = load_data()
+                current_age = current_data["personal"].get("age", 30)
+                current_gender = current_data["personal"].get("gender", "Male")
+                current_weight = current_data["personal"].get("weight", 70)
+                current_goals = current_data.get("goals", ["Fitness"])
                 
-                Previous request was: {orig_prompt}
+                # Create a direct and specific prompt for dietary modifications
+                direct_prompt = f"""
+                I need a COMPLETELY NEW detailed meal plan following these requirements:
                 
-                Be sure to fully incorporate the dietary preferences/restrictions mentioned in: {txt}
+                USER PROFILE:
+                - Age: {current_age} years old
+                - Gender: {current_gender}
+                - Weight: {current_weight}kg
+                - Goals: {', '.join(current_goals)}
+                
+                SPECIFIC DIETARY REQUEST:
+                {txt}
+                
+                Create a meal plan that STRICTLY follows the dietary requirements specified above.
+                Include breakfast, lunch, dinner, and snacks with specific foods and portions.
                 """
-                print(f"Sending updated prompt to AI: {prompt}")
                 
-                # Get the updated plan
-                newplan = call_groq(prompt)
-                print(f"Received new plan: {newplan}")
+                print(f"Sending updated prompt to Groq API: {direct_prompt}")
                 
-                if newplan and "❌" not in newplan:  # Check if we got a valid response
-                    # Save the updated plan to session state and data file
-                    st.session_state.nutrition_plan = newplan
+                # Make a direct call to the API
+                try:
+                    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+                    body = {"messages": [{"role": "user", "content": direct_prompt}], "model": GROQ_MODEL}
+                    res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=body)
                     
-                    # Make sure to reload the latest data before saving
-                    data = load_data()
-                    data["nutrition_plan"] = newplan
-                    save_data(data)
-                    
-                    # Show success message
-                    st.success("Your nutrition plan has been updated successfully!")
-                    
-                    # Clear the feedback input for next time
-                    st.session_state.previous_feedback_text = ""
-                    st.session_state.nutrition_feedback_key = "nutrition_feedback_" + str(time.time())
-                    
-                    # Use javascript to force a complete page reload (more thorough than st.rerun)
-                    st.markdown(
-                        """
-                        <script>
-                            window.parent.location.reload();
-                        </script>
-                        """,
-                        unsafe_allow_html=True
-                    )
-                else:
-                    st.error("Failed to update the nutrition plan. Please try again.")
+                    if res.status_code == 200:
+                        newplan = res.json()["choices"][0]["message"]["content"]
+                        print(f"Received new plan from Groq API: {newplan[:100]}...")
+                        
+                        # Save the updated plan to session state and data file
+                        st.session_state.nutrition_plan = newplan
+                        current_data["nutrition_plan"] = newplan
+                        save_data(current_data)
+                        
+                        # Show success message
+                        st.success("Your nutrition plan has been updated successfully!")
+                        
+                        # Display the updated plan immediately
+                        st.markdown("### Updated Nutrition Plan:")
+                        st.info(newplan)
+                        
+                        # Clear the feedback input for next time
+                        st.session_state.previous_feedback_text = ""
+                        st.session_state.nutrition_feedback_key = "nutrition_feedback_" + str(time.time())
+                        
+                        # Use javascript to force a complete page reload after a delay
+                        st.markdown(
+                            """
+                            <script>
+                                setTimeout(function() {
+                                    window.parent.location.reload();
+                                }, 5000);  // 5-second delay before reload
+                            </script>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.error(f"Groq API Error: {res.status_code} - {res.text}")
+                except Exception as e:
+                    st.error(f"Error processing your request: {str(e)}")
         else:
-            st.warning("Please enter your feedback before submitting.")
+            st.warning("Please enter your dietary preferences or restrictions before submitting.")
     return
 
 
