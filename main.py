@@ -67,36 +67,62 @@ def update_feedback(orig_prompt, feedback_label):
     if "nutrition_feedback_key" not in st.session_state:
         st.session_state.nutrition_feedback_key = "nutrition_feedback_" + str(time.time())
     
+    # Store previous feedback attempt to prevent losing input on rerun
+    if "previous_feedback_text" not in st.session_state:
+        st.session_state.previous_feedback_text = ""
+    
     txt = st.text_area(
         label=feedback_label,
         max_chars=500,
-        key=st.session_state.nutrition_feedback_key
+        key=st.session_state.nutrition_feedback_key,
+        value=st.session_state.previous_feedback_text
     )
+    
+    # Store current text input in session state
+    st.session_state.previous_feedback_text = txt
     
     if st.button("Submit Feedback"):
         if txt:
             with st.spinner("Updating your nutrition plan..."):
-                # Create a more specific prompt that tells the AI to modify the previous plan
-                prompt = f"{orig_prompt}\n\nPlease update the meal plan based on this feedback: {txt}"
-                print(prompt)
+                # Create a more specific and directive prompt for the AI
+                prompt = f"""Based on the user's profile ({age}-year-old {gender}, {weight}kg with goals: {', '.join(goals)}),
+                please create a COMPLETELY NEW meal plan that incorporates this specific feedback: {txt}.
+                
+                Previous request was: {orig_prompt}
+                
+                Be sure to fully incorporate the dietary preferences/restrictions mentioned in: {txt}
+                """
+                print(f"Sending updated prompt to AI: {prompt}")
                 
                 # Get the updated plan
                 newplan = call_groq(prompt)
-                print(newplan)
+                print(f"Received new plan: {newplan}")
                 
                 if newplan and "❌" not in newplan:  # Check if we got a valid response
                     # Save the updated plan to session state and data file
                     st.session_state.nutrition_plan = newplan
+                    
+                    # Make sure to reload the latest data before saving
                     data = load_data()
                     data["nutrition_plan"] = newplan
                     save_data(data)
                     
                     # Show success message
                     st.success("Your nutrition plan has been updated successfully!")
-                    # Reset the feedback input
+                    
+                    # Clear the feedback input for next time
+                    st.session_state.previous_feedback_text = ""
                     st.session_state.nutrition_feedback_key = "nutrition_feedback_" + str(time.time())
-                    # Rerun the app to show the updated plan
-                    st.rerun()
+                    
+                    # Use javascript to force a complete page reload (more thorough than st.rerun)
+                    st.markdown(
+                        """
+                        <script>
+                            window.parent.location.reload();
+                        </script>
+                        """,
+                        unsafe_allow_html=True
+                    )
                 else:
                     st.error("Failed to update the nutrition plan. Please try again.")
         else:
