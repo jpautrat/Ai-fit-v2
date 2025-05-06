@@ -157,46 +157,78 @@ def update_feedback(orig_prompt, feedback_label):
 
 def export_pdf_from_text(title, text_dict):
     try:
-        pdf = FPDF()
-        pdf.set_auto_page_break(auto=True, margin=15)
+        # Create PDF with wider margins and strict text handling
+        pdf = FPDF(orientation="P", unit="mm", format="A4")
+        
+        # Set generous margins
+        pdf.set_margins(left=20, top=20, right=20)
+        pdf.set_auto_page_break(auto=True, margin=20)
+        
+        # Add first page
         pdf.add_page()
-        pdf.set_font("Helvetica", "B", 16)  # Use Helvetica instead of Arial (core font)
-        pdf.cell(0, 10, title, ln=1, align="C")
+        
+        # Use built-in fonts only
+        pdf.set_font("Helvetica", "B", 14)
+        
+        # Add title
+        pdf.cell(w=0, h=10, txt=title, border=0, ln=1, align="C")
         pdf.ln(5)
         
-        # Set smaller font size to fit more text
-        pdf.set_font("Helvetica", size=10)
-        
+        # Process each section with careful text handling
         for key, val in text_dict.items():
-            # Add section header
+            # Section headers with smaller font
             pdf.set_font("Helvetica", "B", 12)
-            pdf.cell(0, 8, str(key)[:50], ln=1)  # Limit key length to 50 chars
             
-            # Convert value to string, handle None values
-            val_str = str(val) if val is not None else ""
+            # Ensure header text is clean and limited in length
+            header_text = str(key)[:40]  # Limit header length
+            pdf.cell(0, 8, header_text, 0, 1)
             
-            # Reset to regular font for content
-            pdf.set_font("Helvetica", size=10)
+            # Normal text for content
+            pdf.set_font("Helvetica", "", 10)
             
-            # Process text in smaller chunks
-            for line in val_str.split("\n"):
-                # Limit line length and replace problematic characters
-                safe_line = line[:200].replace('\x0c', ' ').encode('latin-1', 'replace').decode('latin-1')
-                try:
-                    pdf.multi_cell(0, 5, safe_line)  # Smaller line height (5 instead of 8)
-                except Exception as e:
-                    # If a specific line fails, just add a placeholder
-                    pdf.multi_cell(0, 5, "[Content omitted due to formatting]")
+            # Handle content by breaking into small, manageable pieces
+            content = str(val) if val is not None else ""
+            
+            # Process each paragraph safely
+            for paragraph in content.split("\n"):
+                if paragraph.strip():  # Skip empty paragraphs
+                    # Process paragraph in very small chunks
+                    for i in range(0, len(paragraph), 80):
+                        # Take a chunk of text and clean it
+                        chunk = paragraph[i:i+80]
+                        
+                        # Clean the text - remove problematic characters
+                        clean_chunk = "".join(c if ord(c) < 128 else '?' for c in chunk)
+                        
+                        try:
+                            # Use write instead of multi_cell for more reliable rendering
+                            pdf.write(5, clean_chunk)
+                            
+                            # If this is not the last chunk, don't add line break
+                            if i + 80 < len(paragraph):
+                                pdf.write(5, " ")
+                            else:
+                                pdf.ln()
+                        except Exception:
+                            # If a specific chunk causes problems, skip it
+                            pdf.write(5, "[...]")
+                            pdf.ln()
             
             # Add space between sections
-            pdf.ln(3)
+            pdf.ln(5)
         
+        # Generate PDF as bytes
         return pdf.output(dest="S").encode('latin-1', 'replace')
-    
     except Exception as e:
-        # If PDF generation fails completely, return a simple error message
-        st.error(f"Could not generate PDF: {str(e)}")
-        return b"Error generating PDF"
+        # If PDF generation fails, provide a simple text file instead
+        st.error(f"PDF generation failed: {e}")
+        
+        # Create a simple text file as fallback
+        text_content = title + "\n\n"
+        for k, v in text_dict.items():
+            text_content += f"--- {k} ---\n{v}\n\n"
+        
+        return text_content.encode('utf-8')
 
 def extract_pdf_text(uploaded):
     with fitz.open(stream=uploaded.read(), filetype="pdf") as doc:
