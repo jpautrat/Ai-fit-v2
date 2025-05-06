@@ -9,14 +9,18 @@ import fitz  # PyMuPDF
 import plotly.graph_objects as go
 import plotly.io as pio
 import time
+from langchain.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 
 # -------- CONFIG --------
 # Load Groq API key from Streamlit secrets
-if "GROQ_API_KEY" in st.secrets:
-    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-else:
-    st.error("Missing GROQ_API_KEY in .streamlit/secrets.toml")
-    st.stop()
+#if "GROQ_API_KEY" in st.secrets:
+#    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+#else:
+#    st.error("Missing GROQ_API_KEY in .streamlit/secrets.toml")
+#    st.stop()
+
+GROQ_API_KEY = "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"
 
 GROQ_MODEL = "llama3-70b-8192"
 DATA_FILE = "user_data.json"
@@ -28,6 +32,7 @@ st.session_state.setdefault("theme_mode", "light")
 st.session_state.setdefault("agent_responses", {})
 
 # -------- UTILS --------
+
 def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r") as f:
@@ -37,6 +42,12 @@ def load_data():
 def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=2)
+
+template = """You are an AI language model assistant. Your task is to generate five
+different versions of the given user question. By generating multiple perspectives on the user question, your goal is to help
+the user overcome some of the limitations of the distance-based similarity search.
+Provide these alternative questions separated by newlines. Original question: {question}"""
+prompt_perspectives = ChatPromptTemplate.from_template(template)
 
 def call_groq(prompt):
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
@@ -50,6 +61,20 @@ def call_groq(prompt):
     except Exception as e:
         st.error(f"Error parsing Groq response: {e}")
         return "❌ Failed to parse Groq response."
+    
+def update_feedback(orig_prompt, feedback_label):
+    txt = st.text_input(
+        label = feedback_label,
+        max_chars = 200)
+    if st.button ("Submit") and txt:
+       # st.write ("Updating your plan...")        
+        prompt = orig_prompt + txt
+        print (prompt)
+        newplan = call_groq(prompt)
+        print (newplan)
+        st.rerun()
+    return
+
 
 def export_pdf_from_text(title, text_dict):
     pdf = FPDF()
@@ -153,6 +178,7 @@ if st.button("Save Goals"):
     data["goals"] = goals; save_data(data); st.success("Goals saved!")
 
 # -------- NUTRITION --------
+
 st.markdown("---")
 st.subheader("🍎 Nutrition Targets")
 calories = st.number_input("Calories", value=data.get("nutrition",{}).get("calories",2000))
@@ -166,8 +192,16 @@ with col1:
         save_data(data); st.success("Nutrition saved!")
 with col2:
     if st.button("AI Nutrition Plan"):
-        plan = call_groq(f"Generate meal plan for a {age}-year-old {gender} {weight}kg aiming {', '.join(goals)}.")
+        prompt = f"Generate meal plan for a {age}-year-old {gender} {weight}kg aiming {', '.join(goals)}."
+        print (prompt)
+#        nutplan_prompt = call_groq (prompt_perspectives{"question": prompt})
+#        print (nutplan_prompt)
+        plan = call_groq(prompt)
         st.info(plan)
+        feedback_label = "If you would like to make any changes to your nutritional plan, please enter below"
+        update_feedback(prompt, feedback_label)
+
+
 
 # -------- MACRO CHART --------
 if data.get("nutrition"):
