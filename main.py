@@ -156,20 +156,47 @@ def update_feedback(orig_prompt, feedback_label):
     return
 
 def export_pdf_from_text(title, text_dict):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, title, ln=1, align="C")
-    pdf.ln(5)
-    pdf.set_font("Arial", size=12)
-    for key, val in text_dict.items():
-        pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 8, key, ln=1)
-        pdf.set_font("Arial", size=12)
-        for line in str(val).split("\n"):
-            pdf.multi_cell(0, 8, line)
-        pdf.ln(3)
-    return pdf.output(dest="S").encode('latin-1')
+    try:
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
+        pdf.set_font("Helvetica", "B", 16)  # Use Helvetica instead of Arial (core font)
+        pdf.cell(0, 10, title, ln=1, align="C")
+        pdf.ln(5)
+        
+        # Set smaller font size to fit more text
+        pdf.set_font("Helvetica", size=10)
+        
+        for key, val in text_dict.items():
+            # Add section header
+            pdf.set_font("Helvetica", "B", 12)
+            pdf.cell(0, 8, str(key)[:50], ln=1)  # Limit key length to 50 chars
+            
+            # Convert value to string, handle None values
+            val_str = str(val) if val is not None else ""
+            
+            # Reset to regular font for content
+            pdf.set_font("Helvetica", size=10)
+            
+            # Process text in smaller chunks
+            for line in val_str.split("\n"):
+                # Limit line length and replace problematic characters
+                safe_line = line[:200].replace('\x0c', ' ').encode('latin-1', 'replace').decode('latin-1')
+                try:
+                    pdf.multi_cell(0, 5, safe_line)  # Smaller line height (5 instead of 8)
+                except Exception as e:
+                    # If a specific line fails, just add a placeholder
+                    pdf.multi_cell(0, 5, "[Content omitted due to formatting]")
+            
+            # Add space between sections
+            pdf.ln(3)
+        
+        return pdf.output(dest="S").encode('latin-1', 'replace')
+    
+    except Exception as e:
+        # If PDF generation fails completely, return a simple error message
+        st.error(f"Could not generate PDF: {str(e)}")
+        return b"Error generating PDF"
 
 def extract_pdf_text(uploaded):
     with fitz.open(stream=uploaded.read(), filetype="pdf") as doc:
@@ -316,12 +343,51 @@ for i,note in enumerate(data["notes"]):
     cols = st.columns([4,1,1])
     new_note = cols[0].text_input("", note, key=f"note_{i}")
     if cols[1].button("💾 Save", key=f"save_{i}"):
-        data["notes"][i] = new_note; save_data(data); st.rerun()
+        data["notes"][i] = new_note
+        save_data(data)
+        st.success(f"Note saved!")
+        # Use JavaScript to refresh the page instead of st.rerun()
+        st.markdown(
+            """
+            <script>
+                setTimeout(function() {
+                    window.location.reload();
+                }, 1500);
+            </script>
+            """, 
+            unsafe_allow_html=True
+        )
     if cols[2].button("❌ Delete", key=f"del_{i}"):
-        data["notes"].pop(i); save_data(data); st.rerun()
+        data["notes"].pop(i)
+        save_data(data)
+        st.success(f"Note deleted!")
+        # Use JavaScript to refresh the page instead of st.rerun()
+        st.markdown(
+            """
+            <script>
+                setTimeout(function() {
+                    window.location.reload();
+                }, 1500);
+            </script>
+            """, 
+            unsafe_allow_html=True
+        )
 new_note = st.text_input("Add a new note")
 if st.button("Add Note") and new_note:
-    data["notes"].append(new_note); save_data(data); st.rerun()
+    data["notes"].append(new_note)
+    save_data(data)
+    st.success("Note added!")
+    # Use JavaScript to refresh the page instead of st.rerun()
+    st.markdown(
+        """
+        <script>
+            setTimeout(function() {
+                window.location.reload();
+            }, 1500);
+        </script>
+        """, 
+        unsafe_allow_html=True
+    )
 
 # -------- PDF UPLOAD --------
 st.markdown("---")
